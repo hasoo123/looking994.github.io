@@ -1,14 +1,48 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Pages Guide</title>
+    <title>Размытие фото</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="main">
-        <h1 class="title">GitHub Pages Guide</h1>
-        <p class="text">This is a simple guide to using GitHub Pages.</p>
+    <h1>Размытие фото</h1>
+    <form id="uploadForm">
+        <input type="file" id="imageInput" accept="image/*" required>
+        <button type="submit">Загрузить и размыть</button>
+    </form>
+    <div id="result">
+        <h2>Результат:</h2>
+        <img id="outputImage" src="" alt="Размытое изображение">
     </div>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const imageInput = document.getElementById('imageInput');
+        const outputImage = document.getElementById('outputImage');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const file = imageInput.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // !!! ВАЖНО: здесь укажи IP своего ПК и порт FastAPI
+            const response = await fetch('http://127.0.0.1:8000/blur', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                const blob = await response.blob();
+                outputImage.src = URL.createObjectURL(blob);
+            } else {
+                alert('Ошибка при обработке изображения');
+            }
+        });
+    </script>
 </body>
 </html>
