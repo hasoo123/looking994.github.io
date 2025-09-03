@@ -30,8 +30,8 @@
             const formData = new FormData();
             formData.append('file', file);
 
-            // !!! ВАЖНО: здесь укажи IP своего ПК и порт FastAPI
-            const response = await fetch('http://127.0.0.1:8000/blur', {
+            // Используем твой внешний IP
+            const response = await fetch('http://176.109.186.61:8000/blur', {
                 method: 'POST',
                 body: formData
             });
