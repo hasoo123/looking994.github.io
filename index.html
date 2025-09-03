@@ -1,55 +1,193 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Размытие фото</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Размытие по кругу в видео</title>
+  <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
-    <h1>Размытие фото</h1>
-    <form id="uploadForm">
-        <input type="file" id="imageInput" accept="image/*" required>
-        <button type="submit">Загрузить и размыть</button>
-    </form>
-    <div id="result">
-        <h2>Результат:</h2>
-        <img id="outputImage" src="" alt="Размытое изображение">
+  <h1>Размытие по кругу в видео</h1>
+
+  <div class="panel">
+    <div class="field">
+      <label>Видео:</label>
+      <input id="fileInput" type="file" accept="video/*"/>
     </div>
 
-    <script>
-        const form = document.getElementById('uploadForm');
-        const imageInput = document.getElementById('imageInput');
-        const outputImage = document.getElementById('outputImage');
+    <div class="field">
+      <label>Радиус (пиксели по превью):</label>
+      <input id="radiusInput" type="range" min="10" max="300" value="80"/>
+      <span id="radiusLabel">80 px</span>
+    </div>
 
-form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const file = imageInput.files[0];
-    if (!file) return;
+    <div class="hint">
+      Кликни по превью, чтобы задать центр круга. Перетаскивай мышью для точной настройки.
+    </div>
+  </div>
 
-    const formData = new FormData();
-    formData.append('file', file);
+  <div id="previewWrap">
+    <video id="previewVideo" controls></video>
+    <div id="overlay"></div>
+    <div id="circle"></div>
+  </div>
 
-    try {
-        const response = await fetch('https://slow-suns-tease.loca.lt/blur', {
-            method: 'POST',
-            body: formData
+  <div class="panel">
+    <div class="field">
+      <label>Текущие координаты:</label>
+      <span id="coords">—</span>
+    </div>
+    <button id="processBtn" disabled>Отправить и обработать</button>
+  </div>
+
+  <div id="result">
+    <h2>Результат</h2>
+    <video id="outputVideo" controls></video>
+    <a id="downloadLink" class="btn" download="processed.mp4">Скачать</a>
+  </div>
+
+  <script>
+    // ВАЖНО: укажи HTTPS-адрес твоего сервера/туннеля (например, https://your-name.loca.lt)
+    const API_BASE = 'https://slow-suns-tease.loca.lt'; // замени при необходимости
+
+    const fileInput = document.getElementById('fileInput');
+    const previewVideo = document.getElementById('previewVideo');
+    const overlay = document.getElementById('overlay');
+    const circle = document.getElementById('circle');
+    const radiusInput = document.getElementById('radiusInput');
+    const radiusLabel = document.getElementById('radiusLabel');
+    const coordsSpan = document.getElementById('coords');
+    const processBtn = document.getElementById('processBtn');
+    const outputVideo = document.getElementById('outputVideo');
+    const downloadLink = document.getElementById('downloadLink');
+
+    let file = null;
+    let hasPoint = false;
+    let displayW = 0, displayH = 0;
+    let videoW = 0, videoH = 0;
+    let centerDisp = { x: 0, y: 0 }; // координаты на превью (в пикселях превью)
+
+    function updateRadiusLabel() {
+      radiusLabel.textContent = `${radiusInput.value} px`;
+      drawCircle();
+    }
+
+    function updateOverlaySize() {
+      const rect = previewVideo.getBoundingClientRect();
+      displayW = rect.width;
+      displayH = rect.height;
+      overlay.style.width = displayW + 'px';
+      overlay.style.height = displayH + 'px';
+    }
+
+    function drawCircle() {
+      const r = parseFloat(radiusInput.value);
+      if (!hasPoint) {
+        circle.style.display = 'none';
+        return;
+      }
+      circle.style.display = 'block';
+      circle.style.width = (2 * r) + 'px';
+      circle.style.height = (2 * r) + 'px';
+      circle.style.left = (centerDisp.x - r) + 'px';
+      circle.style.top = (centerDisp.y - r) + 'px';
+    }
+
+    fileInput.addEventListener('change', () => {
+      file = fileInput.files[0] || null;
+      if (!file) {
+        processBtn.disabled = true;
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      previewVideo.src = url;
+      previewVideo.addEventListener('loadedmetadata', () => {
+        videoW = previewVideo.videoWidth;
+        videoH = previewVideo.videoHeight;
+
+        // Задаём разумные размеры превью
+        previewVideo.style.maxWidth = '720px';
+        previewVideo.style.width = '100%';
+        previewVideo.style.height = 'auto';
+
+        setTimeout(() => {
+          updateOverlaySize();
+          // Радиус по умолчанию как 10% от меньшей стороны превью
+          const rDefault = Math.round(Math.min(displayW, displayH) * 0.1);
+          radiusInput.max = Math.round(Math.min(displayW, displayH) / 2);
+          radiusInput.value = rDefault;
+          updateRadiusLabel();
+          processBtn.disabled = false;
+        }, 0);
+      }, { once: true });
+    });
+
+    // Выбор точки кликом/перетаскиванием
+    function setCenterFromEvent(e) {
+      const rect = overlay.getBoundingClientRect();
+      const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+      const y = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+      centerDisp = { x, y };
+      hasPoint = true;
+      coordsSpan.textContent = `(${Math.round(x)}, ${Math.round(y)}) на превью`;
+      drawCircle();
+    }
+
+    let dragging = false;
+    overlay.addEventListener('mousedown', (e) => { dragging = true; setCenterFromEvent(e); });
+    overlay.addEventListener('mousemove', (e) => { if (dragging) setCenterFromEvent(e); });
+    overlay.addEventListener('mouseup', () => dragging = false);
+    overlay.addEventListener('mouseleave', () => dragging = false);
+    overlay.addEventListener('click', setCenterFromEvent);
+
+    radiusInput.addEventListener('input', updateRadiusLabel);
+    window.addEventListener('resize', () => { updateOverlaySize(); drawCircle(); });
+
+    processBtn.addEventListener('click', async () => {
+      if (!file) { alert('Выбери видео'); return; }
+      if (!hasPoint) { alert('Кликни по превью, чтобы выбрать центр круга'); return; }
+
+      // Пересчёт координат и радиуса в систему исходного видео
+      const scaleX = videoW / displayW;
+      const scaleY = videoH / displayH;
+      const rDisp = parseFloat(radiusInput.value);
+      // Используем эквивалентное масштабирование по X (можно взять среднее)
+      const rOrig = Math.round(rDisp * scaleX);
+      const cxOrig = Math.round(centerDisp.x * scaleX);
+      const cyOrig = Math.round(centerDisp.y * scaleY);
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('center_x', String(cxOrig));
+      formData.append('center_y', String(cyOrig));
+      formData.append('radius', String(rOrig));
+
+      processBtn.disabled = true;
+      processBtn.textContent = 'Обработка...';
+
+      try {
+        const response = await fetch(`${API_BASE}/process`, {
+          method: 'POST',
+          body: formData
         });
 
-        if (response.ok) {
-            const blob = await response.blob();
-            outputImage.src = URL.createObjectURL(blob);
-        } else {
-            alert('Ошибка при обработке изображения');
+        if (!response.ok) {
+          const txt = await response.text().catch(() => '');
+          throw new Error(`Сервер вернул ${response.status}. ${txt}`);
         }
-    } catch (err) {
-        console.error(err);
-        alert('Не удалось подключиться к серверу');
-    }
-});
 
-    </script>
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        outputVideo.src = url;
+        downloadLink.href = url;
+      } catch (err) {
+        console.error(err);
+        alert('Ошибка при обработке: ' + err.message);
+      } finally {
+        processBtn.disabled = false;
+        processBtn.textContent = 'Отправить и обработать';
+      }
+    });
+  </script>
 </body>
 </html>
-
-
