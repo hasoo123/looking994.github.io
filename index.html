@@ -30,21 +30,23 @@
             const formData = new FormData();
             formData.append('file', file);
 
-            // Используем твой внешний IP
-            fetch('https://itchy-brooms-fold.loca.lt', {
-                method: 'POST',
-                body: formData
-            });
+            try {
+                const response = await fetch('https://lazy-dodos-pull.loca.lt/blur', {
+                    method: 'POST',
+                    body: formData
+                });
 
-            if (response.ok) {
-                const blob = await response.blob();
-                outputImage.src = URL.createObjectURL(blob);
-            } else {
-                alert('Ошибка при обработке изображения');
+                if (response.ok) {
+                    const blob = await response.blob();
+                    outputImage.src = URL.createObjectURL(blob);
+                } else {
+                    alert('Ошибка при обработке изображения');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Не удалось подключиться к серверу');
             }
         });
     </script>
 </body>
 </html>
-
-
